@@ -1,16 +1,3 @@
-// ==UserScript==
-// @name         Pocket Waifu Coin Hack
-// @namespace    http://tampermonkey.net/
-// @license      MIT
-// @version      1.0.3
-// @description  Please Enjoy! (If you purchase or earn premium... do not play a minigame until restarting the game or you will be banned)
-// @author       ZenbladeJS
-// @match        https://osapi.nutaku.com/*
-// @run-at       document-start
-// @grant        none
-// ==/UserScript==
-    
-    
 //This is the path to check if user has premium probably
 //data.InfoResultPayload.UserReadOnlyData.Premium.Value
 (function() {
