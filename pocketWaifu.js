@@ -16,7 +16,12 @@
 (function() {
     'use strict';
     window.hasPremium = false;
-    console.log('[Pocket Waifu XHR Interceptor] Script loaded');
+    const scriptName = "Pocket Waifu Coin Script"
+    const log = (data) => {
+        console.log('[' + scriptName + '] ' + data, ...[...arguments].slice(1))
+    }
+    log('[Pocket Waifu XHR Interceptor] Script loaded');
+
     // Intercept open to log URL + method
     const originalOpen = XMLHttpRequest.prototype.open;
     XMLHttpRequest.prototype.open = function(method, url, ...rest) {
@@ -49,17 +54,17 @@
                 if (data.FunctionName === 'CompleteTutorial') {
                     window.hasPremium = true;
                 }
-                // console.log(`Data Intercepted!`, data);
+                //log(`Data Intercepted!`, data);
                 if (data.FunctionName === 'FinishMinigame') {
-                    data.FunctionParameter.Score = window.hasPremium ? 3470 : 4300
-                    data.FunctionParameter.Coins = window.hasPremium ? 347 : 430
+                    data.FunctionParameter.Score = 3470//window.hasPremium ? 3470 : 4300
+                    data.FunctionParameter.Coins = 347//window.hasPremium ? 347 : 430
                     const encoder = new TextEncoder()
     
                     newBody = encoder.encode(JSON.stringify(data))
                 }
                 this.addEventListener('readystatechange', function() {
                     if (this.readyState === 4) {
-                        console.log('[PlayFab Interceptor] Intecepted data:', data)
+                        log('[PlayFab Interceptor] Intecepted data:', data)
                         try {
                             const contentType = this.getResponseHeader('Content-Type') || '';
     
@@ -70,10 +75,10 @@
                                 const responseData = isLoginPath ? JSON.parse(decodedText).data : JSON.parse(decodedText).data.FunctionResult;
                                 if (isLoginPath) {
                                     window.hasPremium = !!JSON.parse(responseData.InfoResultPayload.UserReadOnlyData.Premium.Value).Data.length
-                                    console.log('Checked for Premium')
-                                    if (window.hasPremium) console.log('Has Premium!!!')
+                                    log('Checked for Premium')
+                                    if (window.hasPremium) log('Has Premium!!!')
                                 }
-                                console.log('[PlayFab Interceptor] Response Intercepted', responseData);
+                                log('[PlayFab Interceptor] Response Intercepted', responseData);
                             }
     
                         } catch (err) {
