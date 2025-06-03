@@ -4,6 +4,7 @@ window.zenLogger = (...args) => {
     unloggedMessages.push([...args])
 };
 const createLogger = () => {
+    const loggedMessages = []
     let logContainer = document.getElementById('zen-log-container') || document.createElement('div');
     
     logContainer.id = 'zen-log-container';
@@ -38,7 +39,7 @@ const createLogger = () => {
     const toggleButton = document.getElementById('zen-log-toggle-button') || document.createElement('div');
     toggleButton.id = 'zen-log-toggle-button'
     toggleButton.style.position = 'absolute';
-    toggleButton.style.top = '25px';
+    toggleButton.style.top = '24px';
     toggleButton.style.right = '0px';
     toggleButton.style.textAlign = 'center'
     toggleButton.style.transform = 'translate(-50%, -50%)';
@@ -48,6 +49,21 @@ const createLogger = () => {
     toggleButton.style.userSelect = 'none';
     toggleButton.textContent = '-';
     logContainer.appendChild(toggleButton);
+
+    // Create the download button
+    const downloadButton = document.getElementById('zen-log-download-button') || document.createElement('div');
+    downloadButton.id = 'zen-log-download-button';
+    downloadButton.style.position = 'absolute';
+    downloadButton.style.bottom = '24px';
+    downloadButton.style.right = '0px';
+    downloadButton.style.textAlign = 'center'
+    downloadButton.style.transform = 'translate(-50%, -50%)';
+    downloadButton.style.cursor = 'pointer';
+    downloadButton.style.fontSize = '48px';
+    downloadButton.style.color = '#ffffff';
+    downloadButton.style.userSelect = 'none';
+    downloadButton.textContent = '↓';
+    logContainer.appendChild(downloadButton);
 
     // Create the inner log content
     const logContent = document.getElementById('zen-log-content') || document.createElement('div');
@@ -74,6 +90,7 @@ const createLogger = () => {
         if (window.zenLogIsMinimized) {
             // Hide content and shrink box
             logContent.style.display = 'none';
+            downloadButton.style.display = 'none'
             logContainer.style.width = '50px';
             logContainer.style.height = '50px';
             logContainer.style.opacity = '0.7';
@@ -81,15 +98,30 @@ const createLogger = () => {
         } else {
             // Show content and restore box
             logContent.style.display = 'block';
+            downloadButton.style.display = 'none'
             logContainer.style.width = '300px';
             logContainer.style.height = 'auto';
             logContainer.style.opacity = '1';
             toggleButton.textContent = '-';
         }
     });
+    downloadButton.addEventListener('click', () => {
+        const logData = JSON.stringify(loggedMessages, null, 2);
+        const blob = new Blob([logData], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+    
+        const a = document.createElement('a');
+        a.href = url;
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        a.download = 'log-' + timestamp + '.json';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    });
 
     // Global log function
-    window.zenLogger = function(message) {
+    window.zenLogger = function(message, ...rest) {
         const line = document.createElement('div');
         line.textContent = '[ZenLog] ' + message;
         logContent.appendChild(line);
@@ -97,13 +129,13 @@ const createLogger = () => {
         if (!window.zenLogIsMinimized) {
             logContent.scrollTop = logContent.scrollHeight;
         }
-        console.log('[ZenLog]', message);
+        console.log('[ZenLog]', message, ...rest);
+        loggedMessages.push([message, ...rest])
     };
     for (let message of window.unloggedMessages) {
         window.zenLogger(...message)
     }
     window.unloggedMessage = []
 }
+createLogger()
 window.zenLogger('ZenLog initialized.');
-createLogger();
-// Example usage (you can delete these)

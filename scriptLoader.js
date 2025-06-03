@@ -1,9 +1,9 @@
 // ==UserScript==
-// @name         Pocket Waifu Coin Hackeee
+// @name         Pocket Waifu Coin Hack
 // @namespace    http://tampermonkey.net/
 // @license      MIT
-// @version      1.2.0
-// @description  Pocket Waifu Coin Hack
+// @version      1.1.4
+// @description  Please Enjoy! Also using this script may get you banned, I am working on mitigating that
 // @author       ZenbladeJS
 // @match        https://osapi.nutaku.com/*
 // @run-at       document-start
@@ -47,6 +47,7 @@
         try {
             eval(cachedScript);
             isScriptLoaded[script.name] = true;
+            log('[' + script.name + '] Loaded!');
             if (typeof script.onload === 'function') {
                 log('[' + script.name + '] Running onload callback...');
                 script.onload();
@@ -89,6 +90,7 @@
     const fetchScript = function(script) {
         const url = (developerMode ? DEV_BASE : PROD_BASE) + script.file;
         const xhr = new XMLHttpRequest();
+        xhr._skipIntercept = true;
         xhr.open('GET', url, true);
         xhr.responseType = 'text';
 
@@ -103,10 +105,10 @@
                 log('[' + script.name + '] Updated cached script.');
 
                 // Reload page if body not yet loaded (forces fresh eval on next load)
-                if (!isBodyLoaded) {
+                //if (!isBodyLoaded) {
                     log('[' + script.name + '] Reloading page to apply updated script.');
                     location.reload();
-                }
+                //}
             }
 
             // If body is ready now, eval

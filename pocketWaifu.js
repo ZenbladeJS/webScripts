@@ -1,124 +1,191 @@
-//This is the path to check if user has premium probably
-//data.InfoResultPayload.UserReadOnlyData.Premium.Value
 (function() {
     'use strict';
     window.hasPremium = false;
-    const scriptName = "Pocket Waifu Coin Script"
+    const scriptName = 'Pocket Waifu Coin Script';
     window.unloggedMessages = window.unloggedMessages || [];
-    let log = (data, ...rest) => {
-        console.log('[' + scriptName + '] ' + data, rest)
-        unloggedMessages.push([data, ...rest])
-    }
+    let log = function(data, ...rest) {
+        console.log('[' + scriptName + '] ' + data, rest);
+        unloggedMessages.push([data, ...rest]);
+    };
     if (window.zenLogger) log = window.zenLogger;
-    const waitForGameInstanceFullscreen = () => {
+    // --- Helper Functions ---
+    const isJSON = (string) => {
+        try {
+            JSON.parse(string)
+            return true;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    // --- XHR Overrides ---
+    const xhrOverrides = [
+        {
+            filter: function(url, data) {
+                return url.hostname.endsWith('playfabapi.com')
+                    && url.pathname.includes('/Client/ExecuteCloudScript')
+                    && data && data.FunctionName === 'FinishMinigame';
+            },
+            request: function() {
+                this.decodedData.FunctionParameter.Score = 3470;
+                this.decodedData.FunctionParameter.Coins = 347;
+                log('Modified FinishMinigame request:', this.decodedData);
+
+                const encoder = new TextEncoder();
+                this.newBody = encoder.encode(JSON.stringify(this.decodedData));
+            },
+            response: function(responseData) {
+                log('FinishMinigame response:', responseData);
+            }
+        },
+        {
+            filter: function(url, data) {
+                return url.hostname.endsWith('playfabapi.com')
+                    && url.pathname.includes('/Client/LoginWithCustomID');
+            },
+            request: function() {
+                log('Intercepted LoginWithCustomID:', this.decodedData);
+            },
+            response: function(responseData) {
+                try {
+                    window.hasPremium = !!JSON.parse(responseData.InfoResultPayload.UserReadOnlyData.Premium.Value).Data.length;
+                    log('Checked for Premium:', window.hasPremium);
+                } catch (err) {
+                    log('Error parsing premium:', err);
+                }
+            }
+        }
+    ];
+
+    // --- XHR Default Override ---
+    const xhrDefaultOverride = {
+        request: function() {
+            log('[XHR Default] Request:', this._interceptedUrl, this.decodedData);
+        },
+        response: function(responseData) {
+            log('[XHR Default] Response:', this._interceptedUrl, responseData);
+        }
+    };
+
+    // --- Interceptor implementation ---
+    const originalOpen = XMLHttpRequest.prototype.open;
+    XMLHttpRequest.prototype._skipIntercept = false;
+    XMLHttpRequest.prototype.open = function(method, urlStr, ...rest) {
+        if (this._skipIntercept) return originalOpen.call(this, ...arguments); // skip override
+        this._interceptedUrl = urlStr;
+        return originalOpen.call(this, method, urlStr, ...rest);
+    };
+
+    const originalSend = XMLHttpRequest.prototype.send;
+    XMLHttpRequest.prototype.send = function(body) {
+        if (this._skipIntercept) return originalSend.call(this, ...arguments); // skip override
+        this.newBody = body;
+
+        try {
+            const url = new URL(this._interceptedUrl);
+            const isUint8Array = body instanceof Uint8Array;
+            let decodedData = null;
+
+            if (isUint8Array) {
+                const decoder = new TextDecoder('utf-8');
+                const decoded = decoder.decode(body);
+                this.isJSON = isJSON(decoded)
+                decodedData = this.isJSON ? JSON.parse(decoded) : decoded;
+            }
+
+            this.decodedData = decodedData;
+
+            // --- Request hooks ---
+            let requestMatched = false;
+            xhrOverrides.forEach((override) => {
+                try {
+                    if (override.filter(url, decodedData)) {
+                        override.request.call(this);
+                        requestMatched = true;
+                    }
+                } catch (err) {
+                    log('[XHR Interceptor] Error in request hook:', err);
+                }
+            });
+
+            if (!requestMatched && xhrDefaultOverride && typeof xhrDefaultOverride.request === 'function') {
+                try {
+                    xhrDefaultOverride.request.call(this);
+                } catch (err) {
+                    log('[XHR Interceptor] Error in default request hook:', err);
+                }
+            }
+
+            // --- Response hook ---
+            this.addEventListener('readystatechange', function() {
+                if (this.readyState === 4) {
+                    try {
+                        if (this.responseType === 'arraybuffer' && this.response instanceof ArrayBuffer) {
+                            const uint8Array = new Uint8Array(this.response);
+                            const decoder = new TextDecoder('utf-8');
+                            const decodedText = decoder.decode(uint8Array);
+                            const parsed = isJSON(decodedText) ? JSON.parse(decodedText) : decodedText;
+                            const responseData = parsed.data?.FunctionResult || parsed.data || parsed;
+
+                            let responseMatched = false;
+                            xhrOverrides.forEach((override) => {
+                                try {
+                                    if (override.filter(url, this.decodedData)) {
+                                        override.response.call(this, responseData);
+                                        responseMatched = true;
+                                    }
+                                } catch (err) {
+                                    log('[XHR Interceptor] Error in response hook:', err);
+                                }
+                            });
+
+                            if (!responseMatched && xhrDefaultOverride && typeof xhrDefaultOverride.response === 'function') {
+                                try {
+                                    xhrDefaultOverride.response.call(this, responseData);
+                                } catch (err) {
+                                    log('[XHR Interceptor] Error in default response hook:', err);
+                                }
+                            }
+                        }
+                    } catch (err) {
+                        log('[XHR Interceptor] Error reading response:', err);
+                    }
+                }
+            });
+        } catch (err) {
+            log('[XHR Interceptor] Error in interceptor:', err);
+        }
+
+        return originalSend.call(this, this.newBody);
+    };
+
+    log('[Pocket Waifu XHR Interceptor] Script loaded');
+
+    // --- Optional: fullscreen override ---
+    const waitForGameInstanceFullscreen = function() {
         if (typeof gameInstance !== 'undefined' && typeof gameInstance.SetFullscreen === 'function') {
             log('Rewriting gameInstance.SetFullscreen');
-    
-            // Now replace it:
             gameInstance.SetFullscreen = function(fullscreenFlag = 1) {
                 log('My custom gameInstance.SetFullscreen:', fullscreenFlag);
-    
-                const canvasContainer = document.getElementById("gameContainer");
-    
+                const canvasContainer = document.getElementById('gameContainer');
                 if (fullscreenFlag) {
-                    // Example: Use real fullscreen
-                    canvasContainer?.requestFullscreen().then(() => {
+                    canvasContainer?.requestFullscreen().then(function() {
                         log('Entered fullscreen');
-                    }).catch(err => {
+                    }).catch(function(err) {
                         log('Fullscreen request failed:', err);
                     });
-                    
                 } else {
                     if (document.fullscreenElement) {
-                        document.exitFullscreen().then(() => {
+                        document.exitFullscreen().then(function() {
                             log('Exited fullscreen');
                         });
                     }
                 }
             };
-    
         } else {
-            // Not ready yet — keep waiting
             setTimeout(waitForGameInstanceFullscreen, 100);
         }
     };
-    
-    // Start waiting for it!
+
     waitForGameInstanceFullscreen();
-    log('[Pocket Waifu XHR Interceptor] Script loaded');
-    
-    // Intercept open to log URL + method
-    const originalOpen = XMLHttpRequest.prototype.open;
-    XMLHttpRequest.prototype.open = function(method, url, ...rest) {
-        this._interceptedUrl = url;  // Save URL for use in send
-        return originalOpen.call(this, method, url, ...rest);
-    };
-    
-    // Intercept send to log/modify body
-    const originalSend = XMLHttpRequest.prototype.send;
-    XMLHttpRequest.prototype.send = function(body) {
-        let newBody = body
-        try {
-            const url = new URL(this._interceptedUrl);
-    
-            // Check domain contains "playfabapi.com"
-            const isPlayFabApi = url.hostname.endsWith('playfabapi.com');
-    
-            // Check path contains "Client/ExecuteCloudScript"
-            const isExecutePath = url.pathname.includes('/Client/ExecuteCloudScript');
-    
-            const isLoginPath = url.pathname.includes('/Client/LoginWithCustomID')
-    
-            // Check body is Uint8Array
-            const isUint8Array = body instanceof Uint8Array;
-    
-            if (isPlayFabApi && (isExecutePath || isLoginPath) && isUint8Array) {
-                const decoder = new TextDecoder('utf-8');
-                const decoded = decoder.decode(body);
-                const data = JSON.parse(decoded)
-                if (data.FunctionName === 'CompleteTutorial') {
-                    window.hasPremium = true;
-                }
-                //log(`Data Intercepted!`, data);
-                if (data.FunctionName === 'FinishMinigame') {
-                    data.FunctionParameter.Score = 3470//window.hasPremium ? 3470 : 4300
-                    data.FunctionParameter.Coins = 347//window.hasPremium ? 347 : 430
-                    const encoder = new TextEncoder()
-    
-                    newBody = encoder.encode(JSON.stringify(data))
-                }
-                this.addEventListener('readystatechange', function() {
-                    if (this.readyState === 4) {
-                        log('[PlayFab Interceptor] Intecepted data:', data)
-                        try {
-                            const contentType = this.getResponseHeader('Content-Type') || '';
-    
-                            if (this.responseType === 'arraybuffer' && this.response instanceof ArrayBuffer) {
-                                const uint8Array = new Uint8Array(this.response);
-                                const decoder = new TextDecoder('utf-8');
-                                const decodedText = decoder.decode(uint8Array);
-                                const responseData = isLoginPath ? JSON.parse(decodedText).data : JSON.parse(decodedText).data.FunctionResult;
-                                if (isLoginPath) {
-                                    window.hasPremium = !!JSON.parse(responseData.InfoResultPayload.UserReadOnlyData.Premium.Value).Data.length
-                                    log('Checked for Premium')
-                                    if (window.hasPremium) log('Has Premium!!!')
-                                }
-                                log('[PlayFab Interceptor] Response Intercepted', responseData);
-                            }
-    
-                        } catch (err) {
-                            console.error('[PlayFab Interceptor] Error reading response:', err);
-                        }
-                    }
-                });
-            }
-    
-        } catch (err) {
-            console.error('[PlayFab Interceptor] Error in interceptor:', err);
-        }
-        
-        return originalSend.call(this, newBody);
-    };
-    
-    
 })();
