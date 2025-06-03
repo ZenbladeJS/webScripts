@@ -4,11 +4,49 @@
     'use strict';
     window.hasPremium = false;
     const scriptName = "Pocket Waifu Coin Script"
-    const log = (data) => {
-        console.log('[' + scriptName + '] ' + data, ...[...arguments].slice(1))
+    window.unloggedMessages = window.unloggedMessages || [];
+    let log = (data, ...rest) => {
+        console.log('[' + scriptName + '] ' + data, rest)
+        unloggedMessages.push([data, ...rest])
     }
+    if (window.zenLogger) log = window.zenLogger;
+    const waitForGameInstanceFullscreen = () => {
+        if (typeof gameInstance !== 'undefined' && typeof gameInstance.SetFullscreen === 'function') {
+            log('Rewriting gameInstance.SetFullscreen');
+    
+            // Now replace it:
+            gameInstance.SetFullscreen = function(fullscreenFlag = 1) {
+                log('My custom gameInstance.SetFullscreen:', fullscreenFlag);
+    
+                const canvasContainer = document.getElementById("gameContainer");
+    
+                if (fullscreenFlag) {
+                    // Example: Use real fullscreen
+                    canvasContainer?.requestFullscreen().then(() => {
+                        log('Entered fullscreen');
+                    }).catch(err => {
+                        log('Fullscreen request failed:', err);
+                    });
+                    
+                } else {
+                    if (document.fullscreenElement) {
+                        document.exitFullscreen().then(() => {
+                            log('Exited fullscreen');
+                        });
+                    }
+                }
+            };
+    
+        } else {
+            // Not ready yet — keep waiting
+            setTimeout(waitForGameInstanceFullscreen, 100);
+        }
+    };
+    
+    // Start waiting for it!
+    waitForGameInstanceFullscreen();
     log('[Pocket Waifu XHR Interceptor] Script loaded');
-
+    
     // Intercept open to log URL + method
     const originalOpen = XMLHttpRequest.prototype.open;
     XMLHttpRequest.prototype.open = function(method, url, ...rest) {
@@ -78,8 +116,9 @@
         } catch (err) {
             console.error('[PlayFab Interceptor] Error in interceptor:', err);
         }
-    
+        
         return originalSend.call(this, newBody);
     };
+    
     
 })();
