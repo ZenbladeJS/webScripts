@@ -11,7 +11,7 @@ const createLogger = () => {
     const updateLoggerPosition = () => {
         const viewport = window.visualViewport;
         logContainer.style.top = `${viewport.offsetTop + 10}px`;
-        logContainer.style.left = `${viewport.offsetLeft + viewport.width - logContainer.offsetWidth - 10}px`;
+        logContainer.style.left = `${viewport.offsetLeft + viewport.width - logContainer.offsetWidth - 50}px`;
         requestAnimationFrame(updateLoggerPosition);
     };
     
@@ -98,13 +98,14 @@ const createLogger = () => {
         } else {
             // Show content and restore box
             logContent.style.display = 'block';
-            downloadButton.style.display = 'none'
+            downloadButton.style.display = 'block'
             logContainer.style.width = '300px';
             logContainer.style.height = 'auto';
             logContainer.style.opacity = '1';
             toggleButton.textContent = '-';
         }
     });
+    toggleButton.click()//start minimized
     downloadButton.addEventListener('click', () => {
         const logData = JSON.stringify(loggedMessages, null, 2);
         const blob = new Blob([logData], { type: 'application/json' });
