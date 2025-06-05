@@ -2,7 +2,7 @@
 // @name         Pocket Waifu Coin Hack
 // @namespace    http://tampermonkey.net/
 // @license      MIT
-// @version      1.1.4
+// @version      1.1.5
 // @description  Please Enjoy! Also using this script may get you banned, I am working on mitigating that
 // @author       ZenbladeJS
 // @match        https://osapi.nutaku.com/*
@@ -14,129 +14,129 @@
     'use strict';
 
     const developerMode = true;
-    const useMutationObserver = true; // Switch between MutationObserver or setTimeout loop
 
     // Base URLs
     const DEV_BASE = 'http://127.0.0.1:5500/';
     const PROD_BASE = 'https://raw.githubusercontent.com/ZenbladeJS/webScripts/main/';
-    
-    // Global log
-    let log = function(data, ...rest) {
-        console.log('[Script Loader] ' + data, ...rest);
-        unloggedMessages.push([data, ...rest]);
+
+    // Globals
+    const systemGlobal = {}
+    const global = {}
+    global.symbol = Symbol("global")
+    systemGlobal.log = function(data, ...rest) {
+        console.log('[Web Scripts] ' + data, ...rest);
     };
+    const log = systemGlobal.log;
+    global.failedScripts = []; // track failed scripts
 
     // Scripts to load
-    const scriptsToLoad = [
-        { name: 'ZenLog Script', file: 'console.js', onload: function() { log = window.zenLogger; } },
-        { name: 'Pocket Waifu Coin Script', file: 'pocketWaifu.js' }
-    ];
+    const systemScripts = [
+        { name: 'Script Manager', file: 'scriptManager.js' },
+        { name: 'User Script List', file: 'userScriptList.js'}
+    ]
+    systemGlobal.userScripts = []
 
     // State
-    let isBodyLoaded = !!document.body;
-    window.unloggedMessages = window.unloggedMessages || [];
     let isScriptLoaded = {};
 
+    // Fetch Script Variables
+    const maxRetries = 3;
+    let systemScriptsLoaded = 0;
+    let userScriptsLoaded = 0;
+    let needsReload = false;
+
     // Eval one cached script
-    const evalCachedScript = function(script) {
+    const evalSystemScript = ({script}) => {
+        eval('({systemGlobal, global}) => {' + script + '}')({systemGlobal, global});
+    }
+    systemGlobal.evalUserScript = (script) => {
+    }
+    const evalCachedScript = function(script, isSystemScript = false) {
         const cachedScript = localStorage.getItem(script.name);
         if (isScriptLoaded[script.name]) return;
         if (!cachedScript) return log('[' + script.name + '] No cached script found to evaluate.');
 
-        log('[' + script.name + '] Evaluating cached script...');
+        log('Evaluating cached script for ' + script.name + '...');
         try {
-            eval(cachedScript);
-            isScriptLoaded[script.name] = true;
-            log('[' + script.name + '] Loaded!');
-            if (typeof script.onload === 'function') {
-                log('[' + script.name + '] Running onload callback...');
-                script.onload();
-            }
-        } catch (e) {
-            log('[' + script.name + '] Error evaluating cached script:', e);
-        }
-    };
-
-    // Wait for body — MutationObserver version
-    const waitForBodyWithObserver = function() {
-        const observer = new MutationObserver(function(mutations, obs) {
-            if (!document.body) return;
-            isBodyLoaded = true;
-            if (typeof createLogger === 'function') {
-                createLogger();
-            }
-            obs.disconnect();
-        });
-
-        observer.observe(document.documentElement, { childList: true });
-    };
-
-    // Wait for body — setTimeout version
-    const waitForBodyWithTimeout = function() {
-        const checkBody = function() {
-            if (document.body) {
-                isBodyLoaded = true;
-                if (typeof createLogger === 'function') {
-                    createLogger();
-                }
+            if (isSystemScript) {
+                evalSystemScript({name: script.name, file: script.file, script: cachedScript});
             } else {
-                setTimeout(checkBody, 50);
+                systemGlobal.evalUserScript({name: script.name, file: script.file, script: cachedScript})
             }
-        };
-        checkBody();
+            isScriptLoaded[script.name] = true;
+            log(script.name + ' Loaded!');
+        } catch (e) {
+            log('Error evaluating cached script for ' + script.name + ':', e);
+        } 
     };
 
-    // Fetch one script
-    const fetchScript = function(script) {
+    
+
+    // Fetch script
+    const checkIfScriptsLoaded = (isSystemScript) => {
+        isSystemScript ? systemScriptsLoaded++ : userScriptsLoaded++
+        if (isSystemScript ? systemScriptsLoaded === systemScripts.length : userScriptsLoaded === systemGlobal.userScripts.length) {
+            // All fetches done!
+            if (needsReload) {
+                log((isSystemScript ? 'System' : 'User') + ' scripts updated → reloading page...');
+                location.reload();
+            } else {
+                log('All scripts up to date!');
+            }
+        }
+    }
+    const fetchScript = function(script, isSystemScript = false) {
         const url = (developerMode ? DEV_BASE : PROD_BASE) + script.file;
         const xhr = new XMLHttpRequest();
-        xhr._skipIntercept = true;
+        xhr[global.symbol] = true;
         xhr.open('GET', url, true);
         xhr.responseType = 'text';
-
+    
         xhr.onload = function() {
-            if (xhr.status !== 200) return log('[' + script.name + '] Failed to fetch script:', xhr.status, xhr.statusText);
-
-            const newScript = xhr.responseText;
-            const cachedScript = localStorage.getItem(script.name);
-
-            if (cachedScript !== newScript) {
-                localStorage.setItem(script.name, newScript);
-                log('[' + script.name + '] Updated cached script.');
-
-                // Reload page if body not yet loaded (forces fresh eval on next load)
-                //if (!isBodyLoaded) {
-                    log('[' + script.name + '] Reloading page to apply updated script.');
-                    location.reload();
-                //}
+            if (xhr.status !== 200) {
+                log('Failed to fetch script ' + script.name + ':', xhr.status, xhr.statusText);
+            } else {
+                const newScript = xhr.responseText;
+                const cachedScript = localStorage.getItem(script.name);
+    
+                if (cachedScript !== newScript) {
+                    localStorage.setItem(script.name, newScript);
+                    log('Updated cached script for ' + script.name);
+                    needsReload = true; // mark reload needed
+                }
             }
-
-            // If body is ready now, eval
-            if (isBodyLoaded) {
-                evalCachedScript(script);
-            }
+    
+            checkIfScriptsLoaded(isSystemScript)
         };
-
+    
         xhr.onerror = function() {
-            log('[' + script.name + '] Error during script fetch.');
+            script._retryCount++;
+            if (script._retryCount <= maxRetries) {
+                log('ERROR during fetch for ' + script.name + ' (attempt ' + script._retryCount + '), retrying...');
+                setTimeout(() => fetchScript(script), 1000); // retry after 1 sec
+            } else {
+                log(script.name + ' FAILED to load after ' + maxRetries + ' retries!');
+                global.failedScripts.push(script.name);
+        
+                checkIfScriptsLoaded(isSystemScript)
+            }
         };
-
+    
         xhr.send();
     };
 
     // Kickoff
     log('Script Loader initializing...');
-    scriptsToLoad.forEach(function(script) {
-        evalCachedScript(script);
-        fetchScript(script);
+    systemScripts.forEach(script => {
+        script._retryCount = 0;
+        evalCachedScript(script, true);
+        fetchScript(script, true);
     });
-
-    if (useMutationObserver) {
-        log('Using MutationObserver to wait for body...');
-        waitForBodyWithObserver();
-    } else {
-        log('Using setTimeout loop to wait for body...');
-        waitForBodyWithTimeout();
-    }
+    
+    systemGlobal.userScripts.forEach(script => {
+        script._retryCount = 0;
+        evalCachedScript(script, false);
+        fetchScript(script, false);
+    });
 
 })();
