@@ -123,7 +123,7 @@ global.createApi('logger', (script) => {
     return {
         log: (message, ...rest) => {
             const line = document.createElement('div');
-            line.textContent = `[${script.name}] ` + message;
+            line.textContent = `[${script.name}] ` + message + ' ' + rest.map(v => (typeof v === 'object' ? '{data}' : v)).join(' ');
             logContent.appendChild(line);
             // Auto-scroll to bottom if not minimized
             if (!window.zenLogIsMinimized) {

@@ -46,7 +46,7 @@ const requestOverrides = [
             try {
                 //hasPremium = !!JSON.parse(responseData.InfoResultPayload.UserReadOnlyData.Premium.Value).Data.length;
                 log('Login Check for Premium: ' + !!JSON.parse(responseData.InfoResultPayload.UserReadOnlyData.Premium.Value).Data.length);
-                log(responseData)
+                log('Login With Custom ID response', responseData)
             } catch (err) {
                 log('Error parsing premium:', err);
             }

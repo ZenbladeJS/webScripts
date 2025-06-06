@@ -2,7 +2,7 @@
 // @name         Pocket Waifu Coin Hack
 // @namespace    http://tampermonkey.net/
 // @license      MIT
-// @version      1.1.5
+// @version      1.1.6
 // @description  Please Enjoy! Also using this script may get you banned, I am working on mitigating that
 // @author       ZenbladeJS
 // @match        https://osapi.nutaku.com/*
